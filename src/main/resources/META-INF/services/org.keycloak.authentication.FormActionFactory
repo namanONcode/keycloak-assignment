@@ -1,0 +1,3 @@
+com.example.keycloak.registration.authentication.MobileUsernameFormActionFactory
+com.example.keycloak.registration.authentication.CustomProfileValidationFactory
+com.example.keycloak.registration.authentication.CustomPasswordValidationFactory

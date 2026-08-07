@@ -1,0 +1,33 @@
+# Ignore Maven target directory
+target/
+
+# Ignore Python scripts
+*.py
+
+# Ignore Shell scripts
+*.sh
+
+# Ignore log files
+*.log
+
+# Ignore compiled class files at root
+*.class
+AuthFlow.java
+AuthFlowModel.java
+AuthProc.java
+test.java
+Test.class
+
+# Ignore temporary JSON files
+providers.json
+
+# Ignore IDE/Editor folders
+.idea/
+*.iml
+.vscode/
+
+# Ignore sources download folders
+admin_ui_sources/
+services_sources/
+sources/
+.agents/
