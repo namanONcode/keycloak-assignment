@@ -1,0 +1,2 @@
+com.example.keycloak.registration.authentication.MobileNumberAuthenticatorFactory
+com.example.keycloak.registration.authentication.OtpVerificationAuthenticatorFactory

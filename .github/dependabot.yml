@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Maintain dependencies for Maven
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    # Ignoring major updates for Keycloak to ensure compatibility with 26.7.1
+    ignore:
+      - dependency-name: "org.keycloak:*"
+        versions:
+          - ">= 27.0.0"
+
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
