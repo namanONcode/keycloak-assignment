@@ -44,51 +44,65 @@ The custom registration process perfectly mirrors the Keycloak Authentication fl
 
 ```mermaid
 flowchart TD
+    Start((Start Registration)) --> Auth1
+    
     subgraph Flow: mobile-otp-registration
-        A["<b>Mobile Number Authenticator</b><br/><i>Class: MobileNumberAuthenticator.java</i><br/>Method: action()<br/>- Validates mobile & Generates OTP"]
+        Auth1["<b>Mobile Number Authenticator</b><br/><i>MobileNumberAuthenticator.java</i><br/><small>Prompts for mobile number, validates format & duplicates,<br/>generates and sends OTP.</small>"]
         
-        B["<b>OTP Verification Authenticator</b><br/><i>Class: OtpVerificationAuthenticator.java</i><br/>Method: action()<br/>- Verifies OTP & Enforces limits"]
+        Auth1 -- "On Success" --> Auth2
         
-        subgraph Sub-Flow: mobile-otp-registration-form
+        Auth2["<b>OTP Verification Authenticator</b><br/><i>OtpVerificationAuthenticator.java</i><br/><small>Prompts for OTP, verifies against stored session note,<br/>enforces rate limits and expiration.</small>"]
+        
+        Auth2 -- "On Success" --> SubFlow
+        
+        subgraph SubFlow [Sub-flow: mobile-otp-registration-form]
             direction TB
-            C["<b>Mobile Username Form Action</b><br/><i>Class: MobileUsernameFormAction.java</i><br/>Method: validate()<br/>- Injects mobile as username"]
+            FormAction1["<b>Mobile Username Form Action</b><br/><i>MobileUsernameFormAction.java</i><br/><small>Injects the verified mobile number as the username<br/>so it doesn't need to be entered on the form.</small>"]
             
-            D["<b>Registration User Profile Creation</b><br/><i>Class: RegistrationUserCreation (Native)</i><br/>- Creates user in database"]
+            FormAction2["<b>Registration User Profile Creation</b><br/><i>(Built-in Keycloak)</i><br/><small>Creates the base user entity in the database.</small>"]
             
-            E["<b>Custom Profile Validation</b><br/><i>Class: CustomProfileValidation.java</i><br/>Method: success()<br/>- Sets first/last name & mobile attribute"]
+            FormAction3["<b>Custom Profile Validation</b><br/><i>CustomProfileValidation.java</i><br/><small>Validates first/last name, saves them,<br/>and saves mobile number as user attribute.</small>"]
             
-            F["<b>Custom Password Validation</b><br/><i>Class: CustomPasswordValidation.java</i><br/>Method: success()<br/>- Hashes & saves password"]
+            FormAction4["<b>Custom Password Validation</b><br/><i>CustomPasswordValidation.java</i><br/><small>Validates password complexity and confirmation,<br/>then securely hashes and stores it.</small>"]
             
-            C --> D --> E --> F
+            FormAction1 --> FormAction2 --> FormAction3 --> FormAction4
         end
-        
-        A -->|"On Success"| B --> |"On Success"| C
     end
+    
+    SubFlow --> End((Registration Complete))
 ```
 
 ### Detailed Method Execution
 
-1. **Mobile Number Authenticator** (`MobileNumberAuthenticator.java`)
-   - **`authenticate()`**: Renders `mobile-registration.ftl`.
-   - **`action()`**: Validates the 10-digit mobile number, checks for existing duplicates in the DB, generates the OTP, and saves the mobile number temporarily via `context.getAuthenticationSession().setAuthNote("mobile_reg_mobile", mobile)`.
+Here is how the code executes through this flow:
 
-2. **OTP Verification Authenticator** (`OtpVerificationAuthenticator.java`)
-   - **`authenticate()`**: Renders `otp-verification.ftl`.
-   - **`action()`**: Verifies the submitted OTP against the session storage, enforcing the 5-minute expiry and 3-attempt brute-force limit.
+1. **`MobileNumberAuthenticator`**
+   - **Phase:** Initial Authentication Step.
+   - **Code:** Validates the input mobile number using `MobileValidator`, checks for existing users with that number, generates a secure OTP using `SecureRandomOtpGenerator`, and logs/sends it via `LoggingOtpSender`. It stores the mobile number in the Keycloak `AuthenticationSessionModel` as a note.
 
-3. **Mobile Username Form Action** (`MobileUsernameFormAction.java`)
-   - **`validate()`**: Runs immediately upon registration form submission. It retrieves `mobile_reg_mobile` from the session notes and silently injects it into the form payload (`formData.putSingle("username", mobile)`), allowing the username field to be hidden on the frontend.
+2. **`OtpVerificationAuthenticator`**
+   - **Phase:** Second Authentication Step.
+   - **Code:** Retrieves the generated OTP from the session. It validates the user's input against it, checking for expiration (e.g., 5 minutes) and enforcing brute-force limits (e.g., max 3 attempts).
+
+3. **`MobileUsernameFormAction`**
+   - **Phase:** Form Validation (First step of the Registration Form).
+   - **Code:** Intercepts the form submission. It pulls the verified mobile number from the session note and injects it into the form data as the `username` field. This allows the username field to remain hidden on the frontend UI.
 
 4. **Registration User Profile Creation** *(Keycloak Native)*
-   - Executes the core Keycloak logic to insert the user into the database using the injected mobile number as the permanent username.
+   - **Phase:** Core Keycloak Action.
+   - **Code:** This is Keycloak's native action that takes the form data (now containing the injected mobile username) and creates the user in the Keycloak database.
 
-5. **Custom Profile Validation** (`CustomProfileValidation.java`)
-   - **`validate()`**: Aggregates and returns any First/Last name validation errors.
-   - **`success()`**: Once the user is successfully created in step 4, this method updates the user entity with their First and Last Name, and permanently saves the mobile number as a custom user attribute (`user.setSingleAttribute("mobile", mobile)`).
+5. **`CustomProfileValidation`**
+   - **Phase:** Form Validation / Success Action.
+   - **Code:** 
+     - `validate()` checks that First Name and Last Name are provided.
+     - `success()` updates the newly created user with their First Name, Last Name, and saves the verified mobile number as a permanent Keycloak User Attribute (`user.setSingleAttribute("mobile", mobile)`).
 
-6. **Custom Password Validation** (`CustomPasswordValidation.java`)
-   - **`validate()`**: Enforces password complexity rules.
-   - **`success()`**: Securely hashes and stores the validated password in the user's credentials via `user.credentialManager().updateCredential()`.
+6. **`CustomPasswordValidation`**
+   - **Phase:** Form Validation / Success Action.
+   - **Code:**
+     - `validate()` ensures the password meets complexity rules and matches the confirmation field.
+     - `success()` updates the user's Keycloak credentials with the new hashed password.
 
 
 ## Build and deployment
